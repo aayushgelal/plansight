@@ -79,13 +79,6 @@
   #gtnote { color: var(--faint); font-size: 11px; margin-top: 10px; line-height: 1.5; }
 
   footer { border-top: 1px solid var(--line); padding: 14px 0 40px; color: var(--faint); font-size: 11px; display: flex; justify-content: space-between; }
-  .sec2 { margin: 30px 0 10px; }
-  .sec2 h2 { font-size: 16px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.01em; }
-  .sec2 .sub { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; max-width: 800px; }
-  .roiwrap { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-  #view2 { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
-  .roibar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
-  #roicap { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -135,18 +128,6 @@
       <div id="gtnote">precision/recall vs ground truth, IoU 0.35.</div>
     </div>
   </div>
-
-  <section class="sec2">
-    <h2>ROI on real drawings</h2>
-    <p class="sub">The tool above uses a synthetic sheet so results are scorable. Real architect sheets are far denser — this training-free ROI stage ranks regions by ink density, so a model reads the busy parts (buildings, parking, callouts) instead of every pixel. It runs live on a real site plan below; upload your own to try it.</p>
-    <div class="roiwrap">
-      <canvas id="view2" width="1100" height="780"></canvas>
-      <div class="roibar">
-        <span id="roicap">loading sample sheet…</span>
-        <button class="filebtn" id="roiBtn" style="width:auto">↑ upload a real sheet<input type="file" id="roiFile" accept="image/*" /></button>
-      </div>
-    </div>
-  </section>
 
   <footer>
     <span>PlanSight — architectural ROI detection</span>
@@ -527,94 +508,6 @@ function bindLabels() {
 
 el('run').onclick = run;
 el('regen').onclick = () => { if (state.running) return; state.mode = 'synth'; state.seed = (state.seed * 33 + 17) % 99991; el('gtnote').style.opacity = 1; generateSheet(); resetMetrics(); };
-const cv2 = el('view2'), ctx2 = cv2.getContext('2d');
-
-function ccGrid(mask, gw, gh) {
-  const lbl = new Int32Array(gw * gh);
-  const boxes = [], st = [];
-  for (let i = 0; i < gw * gh; i++) {
-    if (!mask[i] || lbl[i]) continue;
-    st.length = 0; st.push(i); lbl[i] = 1;
-    let minx = i % gw, maxx = minx, miny = (i / gw) | 0, maxy = miny, cnt = 0;
-    while (st.length) {
-      const c = st.pop(), cy = (c / gw) | 0, cx = c % gw;
-      cnt++;
-      if (cx < minx) minx = cx; if (cx > maxx) maxx = cx;
-      if (cy < miny) miny = cy; if (cy > maxy) maxy = cy;
-      if (cx > 0 && mask[c - 1] && !lbl[c - 1]) { lbl[c - 1] = 1; st.push(c - 1); }
-      if (cx < gw - 1 && mask[c + 1] && !lbl[c + 1]) { lbl[c + 1] = 1; st.push(c + 1); }
-      if (cy > 0 && mask[c - gw] && !lbl[c - gw]) { lbl[c - gw] = 1; st.push(c - gw); }
-      if (cy < gh - 1 && mask[c + gw] && !lbl[c + gw]) { lbl[c + gw] = 1; st.push(c + gw); }
-    }
-    boxes.push({ minx, miny, maxx, maxy, cnt });
-  }
-  return boxes;
-}
-
-function runROI(image) {
-  const maxW = 1100, sc = Math.min(1, maxW / image.width);
-  const w = Math.round(image.width * sc), h = Math.round(image.height * sc);
-  cv2.width = w; cv2.height = h;
-  ctx2.fillStyle = '#fff'; ctx2.fillRect(0, 0, w, h);
-  ctx2.drawImage(image, 0, 0, w, h);
-  const d = ctx2.getImageData(0, 0, w, h).data;
-
-  const bs = Math.max(10, Math.round(Math.min(w, h) / 70));
-  const gw = Math.floor(w / bs), gh = Math.floor(h / bs);
-  const dens = new Float32Array(gw * gh);
-  for (let by = 0; by < gh; by++) {
-    for (let bx = 0; bx < gw; bx++) {
-      let c = 0;
-      for (let y = by * bs; y < by * bs + bs; y++) {
-        for (let x = bx * bs; x < bx * bs + bs; x++) {
-          const p = (y * w + x) * 4;
-          if (0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2] < 150) c++;
-        }
-      }
-      dens[by * gw + bx] = c / (bs * bs);
-    }
-  }
-
-  const sorted = Float32Array.from(dens).sort();
-  const thr = sorted[Math.floor(sorted.length * 0.9)] || 0.001;
-
-  for (let i = 0; i < dens.length; i++) {
-    if (dens[i] > thr * 0.8) {
-      const a = Math.min(0.45, (dens[i] - thr * 0.8) / 0.5);
-      ctx2.fillStyle = 'rgba(249,115,22,' + (0.1 + a) + ')';
-      ctx2.fillRect((i % gw) * bs, ((i / gw) | 0) * bs, bs, bs);
-    }
-  }
-
-  const mask = new Uint8Array(gw * gh);
-  for (let i = 0; i < dens.length; i++) mask[i] = dens[i] > thr ? 1 : 0;
-  let boxes = ccGrid(mask, gw, gh).filter(b => (b.maxx - b.minx) >= 2 && (b.maxy - b.miny) >= 2);
-  boxes.sort((a, b) => b.cnt - a.cnt);
-  boxes = boxes.slice(0, 8);
-
-  ctx2.lineWidth = Math.max(2, bs / 7); ctx2.strokeStyle = '#ea580c';
-  ctx2.fillStyle = '#ea580c'; ctx2.font = 'bold ' + Math.max(12, bs) + 'px monospace';
-  boxes.forEach((b, i) => {
-    const x = b.minx * bs, y = b.miny * bs;
-    ctx2.strokeRect(x, y, (b.maxx - b.minx + 1) * bs, (b.maxy - b.miny + 1) * bs);
-    ctx2.fillText('R' + (i + 1), x + 2, y - 4);
-  });
-  el('roicap').textContent = gw * gh + ' density cells · ' + boxes.length + ' regions of interest, ranked by ink density';
-}
-
-el('roiFile').onchange = ev => {
-  const f = ev.target.files[0]; if (!f) return;
-  const im = new Image();
-  im.onload = () => runROI(im);
-  im.src = URL.createObjectURL(f);
-};
-
-(function () {
-  const im = new Image();
-  im.onload = () => runROI(im);
-  im.onerror = () => { el('roicap').textContent = 'upload a real sheet to run the ROI pass'; };
-  im.src = 'demo/sample_sheet.jpg';
-})();
 
 function resetMetrics() { ['m_tiles', 'm_raw', 'm_dup', 'm_final', 'm_prec', 'm_rec'].forEach(id => el(id).textContent = '—'); setStep(-1); }
 
