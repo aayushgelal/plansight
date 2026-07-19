@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PlanSight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11;
+    --panel: #16181c;
+    --panel2: #1c1f24;
+    --ink: #e6e8eb;
+    --muted: #8b9199;
+    --faint: #5a616b;
+    --line: #262a30;
+    --accent: #f97316;
+    --tile: #3b82f6;
+    --seam: #eab308;
+    --dup: #ef4444;
+    --pass: #22c55e;
+    --f: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--f); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 18px; }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; height: 50px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .mark { width: 16px; height: 16px; border: 1.5px solid var(--accent); position: relative; }
+  .mark::after { content: ""; position: absolute; left: 3px; top: 3px; right: -4px; bottom: -4px; border: 1.5px solid var(--muted); background: var(--bg); }
+  .brand b { font-weight: 700; letter-spacing: .02em; }
+  .brand span { color: var(--faint); }
+  .bar .st { color: var(--muted); }
+  .bar .st .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pass); display: inline-block; margin-right: 6px; }
+
+  .app { display: grid; grid-template-columns: 1fr 250px; gap: 14px; margin: 18px 0; }
+  @media (max-width: 860px) { .app { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+
+  .steps { display: flex; border-bottom: 1px solid var(--line); }
+  .step { color: var(--faint); padding: 8px 11px; border-right: 1px solid var(--line); font-size: 11px; letter-spacing: .02em; }
+  .step .n { color: #3a3f47; margin-right: 5px; }
+  .step.on { color: var(--bg); background: var(--accent); }
+  .step.on .n { color: rgba(0,0,0,.5); }
+  .step.done { color: var(--pass); }
+  .step.done .n { color: var(--pass); }
+  .cwrap { padding: 12px; }
+  canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 11px; padding: 0 12px; }
+  .legend i { width: 8px; height: 8px; display: inline-block; margin-right: 5px; }
+  #cap { margin: 10px 12px 12px; padding: 8px 10px; background: var(--panel2); border-left: 2px solid var(--accent); border-radius: 3px; color: var(--muted); font-size: 12px; min-height: 16px; }
+  #cap b { color: var(--ink); font-weight: 700; }
+
+  .side { padding: 14px; }
+  .h { color: var(--faint); font-size: 10px; letter-spacing: .12em; margin: 0 0 11px; }
+  .h.mt { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .ctl { margin-bottom: 12px; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: var(--muted); }
+  .ctl label b { color: var(--accent); font-weight: 500; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 2px; }
+  button { font: inherit; font-size: 12px; width: 100%; text-align: left; cursor: pointer; border-radius: 5px; padding: 8px 11px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); margin-bottom: 6px; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0e0f11; font-weight: 700; }
+  button.primary:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .4; cursor: default; }
+  .filebtn { position: relative; overflow: hidden; }
+  .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+  td.k { color: var(--muted); }
+  td.v { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  td.v .d { width: 6px; height: 6px; display: inline-block; margin-right: 6px; }
+  #gtnote { color: var(--faint); font-size: 11px; margin-top: 10px; line-height: 1.5; }
+
+  footer { border-top: 1px solid var(--line); padding: 14px 0 40px; color: var(--faint); font-size: 11px; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div class="brand"><span class="mark"></span><b>PlanSight</b><span>/ tile-and-stitch ROI detection</span></div>
+    <div class="st"><span class="dot"></span>live</div>
+  </div>
+
+  <div class="app">
+    <div class="panel">
+      <div class="steps">
+        <span class="step" data-s="0"><span class="n">01</span>tile</span>
+        <span class="step" data-s="1"><span class="n">02</span>detect</span>
+        <span class="step" data-s="2"><span class="n">03</span>seam</span>
+        <span class="step" data-s="3"><span class="n">04</span>nms</span>
+        <span class="step" data-s="4"><span class="n">05</span>rank</span>
+      </div>
+      <div class="cwrap"><canvas id="view" width="1360" height="920"></canvas></div>
+      <div class="legend">
+        <span><i style="background:var(--tile)"></i>tile</span>
+        <span><i style="background:var(--seam)"></i>raw</span>
+        <span><i style="background:var(--dup)"></i>duplicate</span>
+        <span><i style="background:var(--pass)"></i>final ROI</span>
+      </div>
+      <div id="cap">press <b>run</b></div>
+    </div>
+
+    <div class="panel side">
+      <p class="h">PARAMETERS</p>
+      <div class="ctl"><label>tile_size <b id="tsv">340</b></label><input type="range" id="ts" min="220" max="520" step="20" value="340" /></div>
+      <div class="ctl"><label>overlap <b id="ovv">18%</b></label><input type="range" id="ov" min="0" max="40" step="2" value="18" /></div>
+      <div class="ctl"><label>nms_iou <b id="iouv">0.30</b></label><input type="range" id="iou" min="10" max="70" step="5" value="30" /></div>
+      <div class="ctl"><label>ink_sens <b id="senv">0.55</b></label><input type="range" id="sen" min="30" max="80" step="5" value="55" /></div>
+      <button class="primary" id="run">▶ run</button>
+      <button id="regen">↻ new sheet</button>
+      <button class="filebtn" id="uploadbtn">↑ upload<input type="file" id="file" accept="image/*" /></button>
+
+      <p class="h mt">READOUT</p>
+      <table>
+        <tr><td class="k">tiles</td><td class="v" id="m_tiles">—</td></tr>
+        <tr><td class="k">raw</td><td class="v"><span class="d" style="background:var(--seam)"></span><span id="m_raw">—</span></td></tr>
+        <tr><td class="k">dupes</td><td class="v"><span class="d" style="background:var(--dup)"></span><span id="m_dup">—</span></td></tr>
+        <tr><td class="k">final</td><td class="v"><span class="d" style="background:var(--pass)"></span><span id="m_final">—</span></td></tr>
+        <tr><td class="k">precision</td><td class="v" id="m_prec">—</td></tr>
+        <tr><td class="k">recall</td><td class="v" id="m_rec">—</td></tr>
+      </table>
+      <div id="gtnote">precision/recall vs ground truth, IoU 0.35. upload = detection only.</div>
+    </div>
+  </div>
+
+  <footer>
+    <span>PlanSight — architectural ROI detection</span>
+    <span>client-side</span>
+  </footer>
+</div>
+
+<script>
+const cv = document.getElementById('view');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+const el = id => document.getElementById(id);
+const state = { mode: 'synth', gt: [], mask: null, dil: null, seed: 7, running: false };
+
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function drawDoor(c, x, y, s, r) {
+  c.strokeStyle = '#111827'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + s); c.stroke();
+  c.beginPath(); c.arc(x, y, s, 0, Math.PI / 2); c.stroke();
+  c.beginPath(); c.moveTo(x, y); c.lineTo(x + s, y); c.stroke();
+  return { x: x - 4, y: y - 4, w: s + 8, h: s + 8, cls: 'door' };
+}
+
+function drawWindow(c, x, y, w) {
+  c.strokeStyle = '#111827'; c.lineWidth = 2;
+  c.strokeRect(x, y, w, 10);
+  c.beginPath(); c.moveTo(x, y + 5); c.lineTo(x + w, y + 5); c.stroke();
+  return { x: x - 3, y: y - 3, w: w + 6, h: 16, cls: 'window' };
+}
+
+function drawFixture(c, x, y, r2) {
+  c.strokeStyle = '#111827'; c.lineWidth = 2;
+  roundRect(c, x, y, 34, 26, 8); c.stroke();
+  c.beginPath(); c.ellipse(x + 17, y + 14, 10, 8, 0, 0, Math.PI * 2); c.stroke();
+  return { x: x - 4, y: y - 4, w: 42, h: 34, cls: 'fixture' };
+}
+
+function drawNorth(c, x, y) {
+  c.strokeStyle = '#111827'; c.lineWidth = 2;
+  c.beginPath(); c.arc(x, y, 22, 0, Math.PI * 2); c.stroke();
+  c.beginPath(); c.moveTo(x, y + 16); c.lineTo(x, y - 16); c.lineTo(x - 7, y - 6); c.moveTo(x, y - 16); c.lineTo(x + 7, y - 6); c.stroke();
+  c.fillStyle = '#111827'; c.font = 'bold 12px sans-serif'; c.fillText('N', x - 4, y - 20);
+  return { x: x - 26, y: y - 30, w: 52, h: 58, cls: 'north' };
+}
+
+function drawStairs(c, x, y) {
+  c.strokeStyle = '#111827'; c.lineWidth = 2;
+  c.strokeRect(x, y, 54, 70);
+  for (let i = 1; i < 7; i++) { c.beginPath(); c.moveTo(x, y + i * 10); c.lineTo(x + 54, y + i * 10); c.stroke(); }
+  c.beginPath(); c.moveTo(x + 27, y + 68); c.lineTo(x + 27, y + 2); c.lineTo(x + 21, y + 12); c.moveTo(x + 27, y + 2); c.lineTo(x + 33, y + 12); c.stroke();
+  return { x: x - 4, y: y - 4, w: 62, h: 78, cls: 'stairs' };
+}
+
+function drawTree(c, x, y) {
+  c.strokeStyle = '#111827'; c.lineWidth = 1.6;
+  c.beginPath(); c.arc(x, y, 16, 0, Math.PI * 2); c.stroke();
+  for (let a = 0; a < 8; a++) { const an = a / 8 * Math.PI * 2; c.beginPath(); c.moveTo(x + Math.cos(an) * 8, y + Math.sin(an) * 8); c.lineTo(x + Math.cos(an) * 16, y + Math.sin(an) * 16); c.stroke(); }
+  return { x: x - 20, y: y - 20, w: 40, h: 40, cls: 'tree' };
+}
+
+function generateSheet() {
+  const r = rng(state.seed);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#8a97a8'; ctx.lineWidth = 3; ctx.strokeRect(24, 24, W - 48, H - 48);
+  ctx.lineWidth = 1; ctx.strokeStyle = '#cbd5e1';
+  ctx.strokeRect(40, 40, W - 80, H - 80);
+
+  ctx.strokeStyle = '#8a97a8'; ctx.lineWidth = 2;
+  ctx.strokeRect(W - 300, H - 150, 250, 108);
+  ctx.fillStyle = '#9aa7b8'; ctx.font = '13px sans-serif';
+  ctx.fillText('SITE / FLOOR PLAN — L-2', W - 288, H - 126);
+  ctx.fillText('SCALE 1/8" = 1\'-0"', W - 288, H - 104);
+  ctx.fillText('SHEET A-201', W - 288, H - 82);
+  ctx.fillText('REV 3   2026-07', W - 288, H - 60);
+
+  const gt = [];
+  const rooms = [
+    [90, 90, 360, 300], [470, 90, 300, 220], [90, 420, 300, 250],
+    [470, 330, 300, 200], [800, 90, 360, 300], [800, 420, 360, 250]
+  ];
+  ctx.lineWidth = 3; ctx.strokeStyle = '#8a97a8';
+  rooms.forEach(rm => ctx.strokeRect(rm[0], rm[1], rm[2], rm[3]));
+
+  gt.push(drawDoor(ctx, 300, 90, 46));
+  gt.push(drawDoor(ctx, 470, 240, 40));
+  gt.push(drawDoor(ctx, 250, 420, 44));
+  gt.push(drawDoor(ctx, 800, 220, 42));
+  gt.push(drawDoor(ctx, 980, 420, 46));
+
+  gt.push(drawWindow(ctx, 140, 84, 90));
+  gt.push(drawWindow(ctx, 540, 84, 80));
+  gt.push(drawWindow(ctx, 860, 84, 100));
+  gt.push(drawWindow(ctx, 1084, 180, 70));
+  gt.push(drawWindow(ctx, 84, 500, 70));
+
+  gt.push(drawFixture(ctx, 520, 380));
+  gt.push(drawFixture(ctx, 600, 380));
+  gt.push(drawFixture(ctx, 860, 520));
+  gt.push(drawStairs(ctx, 340, 470));
+  gt.push(drawNorth(ctx, W - 120, 110));
+  gt.push(drawTree(ctx, 250, 720));
+  gt.push(drawTree(ctx, 340, 740));
+  gt.push(drawTree(ctx, 620, 720));
+  gt.push(drawTree(ctx, 980, 730));
+
+  ctx.strokeStyle = '#94a3b8'; ctx.fillStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.font = '12px sans-serif';
+  for (let i = 0; i < 10; i++) {
+    const x = 100 + r() * (W - 380), y = 120 + r() * (H - 260);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 60, y); ctx.stroke();
+    ctx.fillText((10 + Math.floor(r() * 40)) + "'-" + Math.floor(r() * 11) + '"', x + 6, y - 4);
+  }
+
+  state.gt = gt;
+  computeMasks();
+  drawBase();
+}
+
+function computeMasks() {
+  const img = ctx.getImageData(0, 0, W, H).data;
+  const sens = +el('sen').value / 100;
+  const thr = 80 + sens * 80;
+  const mask = new Uint8Array(W * H);
+  for (let i = 0, p = 0; i < mask.length; i++, p += 4) {
+    const lum = 0.299 * img[p] + 0.587 * img[p + 1] + 0.114 * img[p + 2];
+    mask[i] = lum < thr ? 1 : 0;
+  }
+  const dil = new Uint8Array(W * H);
+  const rad = 2;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!mask[y * W + x]) continue;
+      for (let dy = -rad; dy <= rad; dy++) {
+        const yy = y + dy; if (yy < 0 || yy >= H) continue;
+        for (let dx = -rad; dx <= rad; dx++) {
+          const xx = x + dx; if (xx < 0 || xx >= W) continue;
+          dil[yy * W + xx] = 1;
+        }
+      }
+    }
+  }
+  state.mask = mask; state.dil = dil;
+}
+
+function makeTiles(tile, ovFrac) {
+  const stride = Math.max(40, Math.round(tile * (1 - ovFrac)));
+  const tiles = [];
+  for (let y = 0; y < H; y += stride) {
+    for (let x = 0; x < W; x += stride) {
+      const w = Math.min(tile, W - x), h = Math.min(tile, H - y);
+      if (w < 40 || h < 40) continue;
+      tiles.push({ x, y, w, h });
+      if (x + tile >= W) break;
+    }
+    if (y + tile >= H) break;
+  }
+  return tiles;
+}
+
+function detectInTile(t) {
+  const { dil } = state;
+  const { x: ox, y: oy, w: tw, h: th } = t;
+  const visited = new Uint8Array(tw * th);
+  const boxes = [];
+  const stack = new Int32Array(tw * th);
+  for (let ly = 0; ly < th; ly++) {
+    for (let lx = 0; lx < tw; lx++) {
+      const li = ly * tw + lx;
+      if (visited[li] || !dil[(oy + ly) * W + (ox + lx)]) continue;
+      let sp = 0; stack[sp++] = li; visited[li] = 1;
+      let minx = lx, maxx = lx, miny = ly, maxy = ly, area = 0;
+      while (sp > 0) {
+        const ci = stack[--sp];
+        const cy = (ci / tw) | 0, cx = ci - cy * tw;
+        area++;
+        if (cx < minx) minx = cx; if (cx > maxx) maxx = cx;
+        if (cy < miny) miny = cy; if (cy > maxy) maxy = cy;
+        for (let k = 0; k < 4; k++) {
+          const nx = cx + (k === 0 ? 1 : k === 1 ? -1 : 0);
+          const ny = cy + (k === 2 ? 1 : k === 3 ? -1 : 0);
+          if (nx < 0 || ny < 0 || nx >= tw || ny >= th) continue;
+          const ni = ny * tw + nx;
+          if (visited[ni] || !dil[(oy + ny) * W + (ox + nx)]) continue;
+          visited[ni] = 1; stack[sp++] = ni;
+        }
+      }
+      const bw = maxx - minx + 1, bh = maxy - miny + 1;
+      const fill = area / (bw * bh);
+      if (bw < 16 || bh < 12 || bw > 190 || bh > 190) continue;
+      if (area < 140 || area > 26000) continue;
+      if (fill < 0.10) continue;
+      boxes.push({ x: ox + minx, y: oy + miny, w: bw, h: bh, score: Math.min(1, area / 6000 + 0.35), tile: t });
+    }
+  }
+  return boxes;
+}
+
+function iou(a, b) {
+  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+  const iw = x2 - x1, ih = y2 - y1;
+  if (iw <= 0 || ih <= 0) return 0;
+  const inter = iw * ih;
+  return inter / (a.w * a.h + b.w * b.h - inter);
+}
+
+function nms(boxes, thr) {
+  const sorted = boxes.slice().sort((a, b) => b.score - a.score);
+  const keep = [], removed = [];
+  const dead = new Array(sorted.length).fill(false);
+  for (let i = 0; i < sorted.length; i++) {
+    if (dead[i]) continue;
+    keep.push(sorted[i]);
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (dead[j]) continue;
+      if (iou(sorted[i], sorted[j]) > thr) {
+        dead[j] = true;
+        removed.push({ box: sorted[j], seam: sorted[j].tile !== sorted[i].tile });
+      }
+    }
+  }
+  return { keep, removed };
+}
+
+function drawBase() {
+  const src = document.createElement('canvas');
+  src.width = W; src.height = H;
+  src.getContext('2d').drawImage(cv, 0, 0);
+  state.snapshot = src;
+}
+
+function restore() { ctx.drawImage(state.snapshot, 0, 0); }
+
+function box(c, b, color, w, dash) {
+  c.strokeStyle = color; c.lineWidth = w; c.setLineDash(dash || []);
+  c.strokeRect(b.x, b.y, b.w, b.h); c.setLineDash([]);
+}
+
+function setStep(n) {
+  document.querySelectorAll('.step').forEach(s => {
+    const v = +s.dataset.s;
+    s.classList.toggle('on', v === n);
+    s.classList.toggle('done', v < n);
+  });
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function run() {
+  if (state.running) return;
+  state.running = true;
+  el('run').disabled = true; el('regen').disabled = true;
+  restore(); computeMasks();
+
+  const tile = +el('ts').value, ov = +el('ov').value / 100, thr = +el('iou').value / 100;
+  const tiles = makeTiles(tile, ov);
+  el('m_tiles').textContent = tiles.length;
+  ['m_raw', 'm_dup', 'm_final', 'm_prec', 'm_rec'].forEach(id => el(id).textContent = '—');
+
+  const cap = h => { el('cap').innerHTML = h; };
+
+  setStep(0);
+  cap('<b>01 tile</b> — sheet split into ' + tiles.length + ' overlapping tiles');
+  ctx.strokeStyle = 'rgba(59,130,246,.55)'; ctx.lineWidth = 1.2;
+  for (const t of tiles) { ctx.strokeRect(t.x + .5, t.y + .5, t.w, t.h); await sleep(8); }
+  await sleep(200);
+
+  setStep(1);
+  cap('<b>02 detect</b> — per-tile boxes (threshold → dilate → connected components); overlap zones fire twice');
+  let raw = [];
+  for (const t of tiles) {
+    const dets = detectInTile(t);
+    raw = raw.concat(dets);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(234,179,8,.5)'; ctx.fillStyle = 'rgba(234,179,8,.08)';
+    ctx.lineWidth = 3; ctx.strokeRect(t.x, t.y, t.w, t.h); ctx.fillRect(t.x, t.y, t.w, t.h);
+    ctx.restore();
+    for (const d of dets) box(ctx, d, '#ca8a04', 2);
+    el('m_raw').textContent = raw.length;
+    await sleep(24);
+  }
+  await sleep(240);
+
+  const { keep, removed } = nms(raw, thr);
+
+  setStep(2);
+  cap('<b>03 seam</b> — same symbol found in adjacent tiles (IoU > nms_iou), flagged');
+  restore();
+  for (const d of raw) box(ctx, d, '#ca8a04', 2);
+  const seamDupes = removed.filter(r => r.seam);
+  for (const r of removed) box(ctx, r.box, '#ef4444', 2.4, [5, 3]);
+  el('m_dup').textContent = seamDupes.length;
+  await sleep(620);
+
+  setStep(3);
+  cap('<b>04 nms</b> — keep best box per cluster, drop duplicates, stitch to page coords');
+  restore();
+  for (const k of keep) box(ctx, k, '#22c55e', 2.4);
+  el('m_final').textContent = keep.length;
+  await sleep(280);
+
+  setStep(4);
+  cap('<b>05 rank</b> — regions scored by density; precision / recall vs ground truth below');
+  rankAndGlow(keep);
+  await sleep(180);
+
+  if (state.mode === 'synth') scoreAgainstGT(keep);
+  else { el('m_prec').textContent = 'n/a'; el('m_rec').textContent = 'n/a'; }
+
+  setStep(5);
+  state.running = false;
+  el('run').disabled = false; el('regen').disabled = false;
+}
+
+function rankAndGlow(keep) {
+  const ranked = keep.slice().sort((a, b) => (b.w * b.h) - (a.w * a.h)).slice(0, 6);
+  ctx.save();
+  ranked.forEach((b, i) => {
+    ctx.fillStyle = 'rgba(249,115,22,' + (0.26 - i * 0.03) + ')';
+    ctx.fillRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
+    ctx.fillStyle = '#f97316'; ctx.font = 'bold 11px monospace';
+    ctx.fillText('R' + (i + 1), b.x, b.y - 9);
+  });
+  ctx.restore();
+}
+
+function scoreAgainstGT(keep) {
+  const gt = state.gt, used = new Array(gt.length).fill(false);
+  let tp = 0;
+  for (const d of keep) {
+    let best = -1, bi = -1;
+    for (let i = 0; i < gt.length; i++) {
+      if (used[i]) continue;
+      const v = iou(d, gt[i]);
+      if (v > best) { best = v; bi = i; }
+    }
+    if (best >= 0.35 && bi >= 0) { used[bi] = true; tp++; }
+  }
+  const fp = keep.length - tp, fn = gt.length - tp;
+  const prec = tp / Math.max(1, tp + fp), rec = tp / Math.max(1, tp + fn);
+  el('m_prec').textContent = (prec * 100).toFixed(0) + '%';
+  el('m_rec').textContent = (rec * 100).toFixed(0) + '%';
+}
+
+function bindLabels() {
+  el('ts').oninput = e => el('tsv').textContent = e.target.value;
+  el('ov').oninput = e => el('ovv').textContent = e.target.value + '%';
+  el('iou').oninput = e => el('iouv').textContent = (e.target.value / 100).toFixed(2);
+  el('sen').oninput = e => el('senv').textContent = (e.target.value / 100).toFixed(2);
+}
+
+el('run').onclick = run;
+el('regen').onclick = () => { if (state.running) return; state.mode = 'synth'; state.seed = (state.seed * 33 + 17) % 99991; el('gtnote').style.opacity = 1; generateSheet(); resetMetrics(); };
+el('file').onchange = ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    state.mode = 'upload';
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    const s = Math.min(W / img.width, H / img.height);
+    const dw = img.width * s, dh = img.height * s;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    state.gt = []; computeMasks(); drawBase(); resetMetrics();
+    el('gtnote').textContent = 'detection only — uploaded drawings have no ground truth';
+  };
+  img.src = URL.createObjectURL(f);
+};
+
+function resetMetrics() { ['m_tiles', 'm_raw', 'm_dup', 'm_final', 'm_prec', 'm_rec'].forEach(id => el(id).textContent = '—'); setStep(-1); }
+
+bindLabels();
+generateSheet();
+resetMetrics();
+if (location.search.indexOf('auto') >= 0) setTimeout(run, 400);
+</script>
+</body>
+</html>

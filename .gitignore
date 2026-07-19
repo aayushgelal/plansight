@@ -1,0 +1,8 @@
+OUTREACH.md
+.DS_Store
+__pycache__/
+*.pyc
+.vercel
+node_modules/
+runs/
+*.pt
