@@ -204,8 +204,23 @@ function drawTree(c, x, y) {
   return { x: x - 20, y: y - 20, w: 40, h: 40, cls: 'tree' };
 }
 
+function placeSymbol(kind, x, y, maxw, maxh, r) {
+  const ri = (a, b) => a + ((r() * (b - a + 1)) | 0);
+  if (kind === 'door' && maxw > 52 && maxh > 52) { const s = Math.min(48, Math.min(maxw, maxh) - 6); return drawDoor(ctx, x + 6, y + 6, Math.max(36, s)); }
+  if (kind === 'window' && maxw > 62) { const w = Math.min(ri(70, 100), maxw - 8); return drawWindow(ctx, x + 6, y + 16, w); }
+  if (kind === 'fixture' && maxw > 48 && maxh > 40) { return drawFixture(ctx, x + 6, y + 6); }
+  if (kind === 'stairs' && maxw > 68 && maxh > 84) { return drawStairs(ctx, x + 4, y + 4); }
+  if (kind === 'north' && maxw > 56 && maxh > 62) { return drawNorth(ctx, x + 30, y + 34); }
+  if (kind === 'tree' && maxw > 42 && maxh > 42) { return drawTree(ctx, x + 22, y + 22); }
+  if (maxw > 42 && maxh > 42) return drawTree(ctx, x + 22, y + 22);
+  return null;
+}
+
 function generateSheet() {
   const r = rng(state.seed);
+  const ri = (a, b) => a + ((r() * (b - a + 1)) | 0);
+  const pick = arr => arr[(r() * arr.length) | 0];
+
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = '#8a97a8'; ctx.lineWidth = 3; ctx.strokeRect(24, 24, W - 48, H - 48);
   ctx.lineWidth = 1; ctx.strokeStyle = '#cbd5e1';
@@ -216,47 +231,45 @@ function generateSheet() {
   ctx.fillStyle = '#9aa7b8'; ctx.font = '13px sans-serif';
   ctx.fillText('SITE / FLOOR PLAN — L-2', W - 288, H - 126);
   ctx.fillText('SCALE 1/8" = 1\'-0"', W - 288, H - 104);
-  ctx.fillText('SHEET A-201', W - 288, H - 82);
-  ctx.fillText('REV 3   2026-07', W - 288, H - 60);
+  ctx.fillText('SHEET A-20' + ri(1, 5), W - 288, H - 82);
+  ctx.fillText('REV ' + ri(1, 6) + '   2026-07', W - 288, H - 60);
 
   const gt = [];
-  const rooms = [
-    [90, 90, 360, 300], [470, 90, 300, 220], [90, 420, 300, 250],
-    [470, 330, 300, 200], [800, 90, 360, 300], [800, 420, 360, 250]
-  ];
-  ctx.lineWidth = 3; ctx.strokeStyle = '#8a97a8';
-  rooms.forEach(rm => ctx.strokeRect(rm[0], rm[1], rm[2], rm[3]));
+  const cols = ri(2, 3), rows = ri(2, 3);
+  const mx = 70, my = 78;
+  const gridW = W - 2 * mx, gridH = H - my - 172;
+  const cw = gridW / cols, ch = gridH / rows;
+  const kinds = ['door', 'window', 'fixture', 'tree', 'stairs', 'north'];
 
-  gt.push(drawDoor(ctx, 300, 90, 46));
-  gt.push(drawDoor(ctx, 470, 240, 40));
-  gt.push(drawDoor(ctx, 250, 420, 44));
-  gt.push(drawDoor(ctx, 800, 220, 42));
-  gt.push(drawDoor(ctx, 980, 420, 46));
+  for (let rr = 0; rr < rows; rr++) {
+    for (let cc = 0; cc < cols; cc++) {
+      const rx = mx + cc * cw + ri(0, 22);
+      const ry = my + rr * ch + ri(0, 22);
+      const rw = cw - ri(46, 84);
+      const rh = ch - ri(40, 80);
+      ctx.strokeStyle = '#8a97a8'; ctx.lineWidth = 3;
+      ctx.strokeRect(rx, ry, rw, rh);
 
-  gt.push(drawWindow(ctx, 140, 84, 90));
-  gt.push(drawWindow(ctx, 540, 84, 80));
-  gt.push(drawWindow(ctx, 860, 84, 100));
-  gt.push(drawWindow(ctx, 1084, 180, 70));
-  gt.push(drawWindow(ctx, 84, 500, 70));
-
-  gt.push(drawFixture(ctx, 520, 380));
-  gt.push(drawFixture(ctx, 600, 380));
-  gt.push(drawFixture(ctx, 860, 520));
-  gt.push(drawStairs(ctx, 340, 470));
-  gt.push(drawNorth(ctx, W - 120, 110));
-  gt.push(drawTree(ctx, 250, 720));
-  gt.push(drawTree(ctx, 340, 740));
-  gt.push(drawTree(ctx, 620, 720));
-  gt.push(drawTree(ctx, 980, 730));
+      const slots = [[0, 0], [1, 0], [0, 1], [1, 1]];
+      for (let i = slots.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; const t = slots[i]; slots[i] = slots[j]; slots[j] = t; }
+      const n = ri(1, 2);
+      for (let s = 0; s < n; s++) {
+        const px = rx + slots[s][0] * (rw / 2) + 14;
+        const py = ry + slots[s][1] * (rh / 2) + 14;
+        const b = placeSymbol(pick(kinds), px, py, rw / 2 - 26, rh / 2 - 26, r);
+        if (b) gt.push(b);
+      }
+    }
+  }
+  state.gt = gt;
 
   ctx.strokeStyle = '#94a3b8'; ctx.fillStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.font = '12px sans-serif';
   for (let i = 0; i < 10; i++) {
     const x = 100 + r() * (W - 380), y = 120 + r() * (H - 260);
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 60, y); ctx.stroke();
-    ctx.fillText((10 + Math.floor(r() * 40)) + "'-" + Math.floor(r() * 11) + '"', x + 6, y - 4);
+    ctx.fillText(ri(10, 50) + "'-" + ri(0, 11) + '"', x + 6, y - 4);
   }
 
-  state.gt = gt;
   computeMasks();
   drawBase();
 }
